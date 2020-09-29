@@ -1,0 +1,130 @@
+---
+title: Prediction of the manner 6 participants did excercise.
+author: "Isabel Méndez"
+date: "07/28/2020"
+output: html_document
+---
+# Final Project Report - Practical Machine Learning Course
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. [More information is available from the website here:](http://groupware.les.inf.puc-rio.br/har).
+
+## Data
+
+[Storm Data](http://www.ncdc.noaa.gov/stormevents/ftp.jsp)
+There is also some documentation of the database available. Here you will find how some of the variables are constructed/defined.
+
+[The training data for this project are available in this link:](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv).
+[The test data:](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv).
+
+[The data for this project come from this source:](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har). If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+## Projct Purpose
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+### Loading the library
+```{r}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(RGtk2)
+library(rattle)
+library(randomForest)
+#rfNews()
+
+```
+
+### Loading the training data
+```{r}
+UrlTrain <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+UrlTest  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+# download the datasets
+dataset_training <- read.csv(url(UrlTrain))
+dataset_testing  <- read.csv(url(UrlTest))
+```
+
+#### Cleaning the data
+```{r}
+features <- names(dataset_testing[,colSums(is.na(dataset_testing)) == 0])[8:59]
+dataset_training <- dataset_training[,c(features,"classe")]
+dataset_testing <- dataset_testing[,c(features,"problem_id")]
+
+dim(dataset_training); dim(dataset_testing);
+```
+# Revision of the structure of the training dataset
+```{r}
+str(dataset_training)
+str(dataset_testing)
+
+```
+
+# Partitioning Dataset
+```{r}
+set.seed(14249)
+
+inTrain <- createDataPartition(dataset_training$classe, p=0.6, list=FALSE)
+training <- dataset_training[inTrain,]
+testing <- dataset_training[-inTrain,]
+```
+# Decision Tree Model:
+
+This model gives an accuracy of 80% or less.
+
+```{r}
+Mod_FTestData <- rpart(classe ~ ., data = training, method="class")
+rpart.plot(Mod_FTestData, main = "Tree Decision", extra= 100, under = TRUE, faclen = 0)
+#fancyRpartPlot(Mod_FTestData)
+#levels(Mod_FTestData)
+```
+# Predicting with this tree model:
+
+In this model, I convert the $classe into factor so I can perform the confusionMatrix. Otherwise, an error message is displayed: Error: `data` and `reference` should be factors with the same levels.
+
+```{r}
+set.seed(14249)
+prediction <- predict(Mod_FTestData, testing, type = "class")
+#print(testing$classe)
+#print(prediction) This is to validate if both classes are either factor or character.
+testing_factor <-as.factor(testing$classe) # This class was converted into factor to do the confusionMatrix
+confusionMatrix(data = prediction, reference = testing_factor)
+```
+# Building the Random Forest Model
+
+```{r}
+set.seed(14249)
+Mod_FRFor <- randomForest(as.factor(classe) ~ ., data = training, ntree = 1000)
+prediction <- predict(Mod_FRFor, testing, type = "class")
+confusionMatrix(prediction, testing_factor)
+```
+
+# Predicting on the Testing Data (pml-testing.csv)
+
+```{r}
+predi_TestData <- predict(Mod_FTestData, dataset_testing, type = "class")
+predi_TestData
+```
+
+# Random Forest Prediction
+```{r}
+prediction_RandForest <- predict(Mod_FRFor, dataset_testing, type = "class")
+prediction_RandForest
+```
+
+### Analysis: Random Forest Prediction have better Accuracy than the Tree Decision.
+
+## Submission file:
+
+As the random forest predicition has better accuracy (99%) than the tree decision. These are the correct answers for the quizz.
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_2",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(prediction_RandForest)
+```
